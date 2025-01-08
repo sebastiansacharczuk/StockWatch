@@ -50,3 +50,6 @@ venv
 
 # Log files
 *.log
+
+# migrations
+**/migrations/**
