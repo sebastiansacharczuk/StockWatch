@@ -3,8 +3,10 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.views import TokenRefreshView, TokenObtainPairView
 
-from .models import Watchlist
-from .serializers import UserSerializer, UserRegisterSerializer, WatchlistSerializer
+from .models import Watchlist, WatchlistPosition
+from .serializers import WatchlistSerializer, WatchlistPositionSerializer, UserSerializer, UserRegisterSerializer, \
+    CreateWatchlistSerializer, RenameWatchlistSerializer, DeleteWatchlistPositionSerializer, \
+    CreateWatchlistPositionSerializer, DeleteWatchlistSerializer, GetWatchlistSerializer
 from .utils import format_response
 
 
@@ -16,56 +18,97 @@ def get_watchlists(request):
     serializer = WatchlistSerializer(watchlists, many=True)
     return Response(format_response(status=True, return_data=serializer.data))
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_watchlist(request):
+    serializer = GetWatchlistSerializer(data=request.data)
+    if serializer.is_valid():
+        user = request.user
+        watchlist_id = serializer.validated_data['watchlist_id']
+        watchlist = Watchlist.objects.get(user=user, id=watchlist_id)
+        serializer = WatchlistSerializer(watchlist)
+        return Response(format_response(status=True, return_data={"watchlist": serializer.data}))
+    return Response(format_response(status=False, error_descr="Invalid ID"))
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def create_watchlist(request):
-    user = request.user
-    watchlist_name = request.data.get('watchlist_name')
-    watchlist = Watchlist.objects.create(user=user, name=watchlist_name)
-    serializer = WatchlistSerializer(watchlist)
-    return Response(format_response(status=True, return_data=serializer.data))
+    serializer = CreateWatchlistSerializer(data=request.data)
+    if serializer.is_valid():
+        user = request.user
+        watchlist_name = serializer.validated_data['watchlist_name']
+        watchlist = Watchlist.objects.create(user=user, name=watchlist_name)
+        watchlist_serializer = WatchlistSerializer(watchlist)
+        return Response(format_response(status=True, return_data=watchlist_serializer.data))
+    return Response(format_response(status=False, error_descr=serializer.errors), status=400)
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def rename_watchlist(request):
-    user = request.user
-    watchlist_id = request.data.get('watchlist_id')  # Name of the watchlist to rename
-    new_name = request.data.get('watchlist_name')  # New name for the watchlist
-
-    # Retrieve the specific watchlist
-    try:
-        watchlist = Watchlist.objects.get(user=user, id=watchlist_id)
-    except Watchlist.DoesNotExist:
-        return Response(format_response(status=False, error_descr="Watchlist not found"), status=404)
-
-    # Update the name
-    watchlist.name = new_name
-    watchlist.save()
-
-    # Serialize the updated instance
-    serializer = WatchlistSerializer(watchlist)
-    return Response(format_response(status=True, return_data=serializer.data))
+    serializer = RenameWatchlistSerializer(data=request.data)
+    if serializer.is_valid():
+        user = request.user
+        watchlist_id = serializer.validated_data['watchlist_id']
+        new_name = serializer.validated_data['watchlist_name']
+        if Watchlist.objects.filter(user=user, name=new_name).exists():
+            return Response(format_response(status=False, error_descr="A watchlist with this name already exists"), status=400)
+        try:
+            watchlist = Watchlist.objects.get(user=user, id=watchlist_id)
+            watchlist.name = new_name
+            watchlist.save()
+            watchlist_serializer = WatchlistSerializer(watchlist)
+            return Response(format_response(status=True, return_data=watchlist_serializer.data))
+        except Watchlist.DoesNotExist:
+            return Response(format_response(status=False, error_descr="Watchlist not found"), status=404)
+    return Response(format_response(status=False, error_descr=serializer.errors), status=400)
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def delete_watchlist(request):
-    user = request.user
-    watchlist_id = request.data.get('watchlist_id')
+    serializer = DeleteWatchlistSerializer(data=request.data)
+    if serializer.is_valid():
+        user = request.user
+        watchlist_id = serializer.validated_data['watchlist_id']
+        try:
+            watchlist = Watchlist.objects.get(user=user, id=watchlist_id)
+            watchlist.delete()
+            return Response(format_response(status=True))
+        except Watchlist.DoesNotExist:
+            return Response(format_response(status=False, error_descr="Watchlist not found"), status=404)
+    return Response(format_response(status=False, error_descr=serializer.errors), status=400)
 
-    # Validate input
-    if not watchlist_id:
-        return Response(
-            format_response(status=False, error_descr="'watchlist_id' is required"),
-            status=400
-        )
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def create_watchlist_position(request):
+    serializer = CreateWatchlistPositionSerializer(data=request.data)
+    if serializer.is_valid():
+        user = request.user
+        watchlist_id = serializer.validated_data['watchlist_id']
+        ticker = serializer.validated_data['ticker']
+        try:
+            watchlist = Watchlist.objects.get(user=user, id=watchlist_id)
+            watchlist_position = WatchlistPosition.objects.create(ticker=ticker, watchlist=watchlist)
+            watchlist_position_serializer = WatchlistPositionSerializer(watchlist_position)
+            return Response(format_response(status=True, return_data=watchlist_position_serializer.data))
+        except Watchlist.DoesNotExist:
+            return Response(format_response(status=False, error_descr="Watchlist not found"), status=404)
+    return Response(format_response(status=False, error_descr=serializer.errors), status=400)
 
-    try:
-        watchlist = Watchlist.objects.get(user=user, id=watchlist_id)
-        watchlist.delete()
-        return Response(format_response(status=True))
-    except Watchlist.DoesNotExist:
-        return Response(format_response(status=False, error_descr="Watchlist not found"), status=404)
-
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def delete_watchlist_position(request):
+    serializer = DeleteWatchlistPositionSerializer(data=request.data)
+    if serializer.is_valid():
+        user = request.user
+        watchlist_id = serializer.validated_data['watchlist_id']
+        watchlist_position_id = serializer.validated_data['watchlist_position_id']
+        try:
+            watchlist_position = WatchlistPosition.objects.get(id=watchlist_position_id)
+            watchlist_position.delete()
+            return Response(format_response(status=True))
+        except WatchlistPosition.DoesNotExist:
+            return Response(format_response(status=False, error_descr="WatchlistPosition not found"), status=404)
+    return Response(format_response(status=False, error_descr=serializer.errors), status=400)
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -166,5 +209,3 @@ class CustomTokenRefreshView(TokenRefreshView):
         except Exception as e:
             print(e)
             return Response(format_response(status=False))
-
-

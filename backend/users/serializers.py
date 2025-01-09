@@ -24,13 +24,34 @@ class UserRegisterSerializer(serializers.ModelSerializer):
         user.save()
         return user
 
-
-class WatchlistSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Watchlist
-        fields = ['id', 'name']
-
 class WatchlistPositionSerializer(serializers.ModelSerializer):
     class Meta:
         model = WatchlistPosition
         fields = ['id', 'ticker']
+
+class WatchlistSerializer(serializers.ModelSerializer):
+    positions = WatchlistPositionSerializer(many=True, read_only=True)
+    class Meta:
+        model = Watchlist
+        fields = ['id', 'name', 'positions']
+
+class GetWatchlistSerializer(serializers.ModelSerializer):
+    watchlist_id = serializers.UUIDField()
+
+class CreateWatchlistSerializer(serializers.Serializer):
+    watchlist_name = serializers.CharField(max_length=255)
+
+class RenameWatchlistSerializer(serializers.Serializer):
+    watchlist_id = serializers.IntegerField()
+    watchlist_name = serializers.CharField(max_length=255)
+
+class DeleteWatchlistSerializer(serializers.Serializer):
+    watchlist_id = serializers.IntegerField()
+
+class CreateWatchlistPositionSerializer(serializers.Serializer):
+    watchlist_id = serializers.IntegerField()
+    ticker = serializers.CharField(max_length=10)
+
+class DeleteWatchlistPositionSerializer(serializers.Serializer):
+    watchlist_id = serializers.IntegerField()
+    watchlist_position_id = serializers.IntegerField()
