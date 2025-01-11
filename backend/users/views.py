@@ -25,9 +25,12 @@ def get_watchlist(request):
     if serializer.is_valid():
         user = request.user
         watchlist_id = serializer.validated_data['watchlist_id']
-        watchlist = Watchlist.objects.get(user=user, id=watchlist_id)
-        serializer = WatchlistSerializer(watchlist)
-        return Response(format_response(status=True, return_data={"watchlist": serializer.data}))
+        try:
+            watchlist = Watchlist.objects.get(user=user, id=watchlist_id)
+            resp = WatchlistSerializer(watchlist)
+            return Response(format_response(status=True, return_data={"watchlist": resp.data}))
+        except Watchlist.DoesNotExist:
+            return Response(format_response(status=False, error_descr="Watchlist not found"), status=404)
     return Response(format_response(status=False, error_descr="Invalid ID"))
 
 @api_view(['POST'])
@@ -37,6 +40,8 @@ def create_watchlist(request):
     if serializer.is_valid():
         user = request.user
         watchlist_name = serializer.validated_data['watchlist_name']
+        if Watchlist.objects.filter(user=user, name=watchlist_name).exists():
+            return Response(format_response(status=False, error_descr="Watchlist already exists"))
         watchlist = Watchlist.objects.create(user=user, name=watchlist_name)
         watchlist_serializer = WatchlistSerializer(watchlist)
         return Response(format_response(status=True, return_data=watchlist_serializer.data))
@@ -77,6 +82,7 @@ def delete_watchlist(request):
             return Response(format_response(status=False, error_descr="Watchlist not found"), status=404)
     return Response(format_response(status=False, error_descr=serializer.errors), status=400)
 
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def create_watchlist_position(request):
@@ -85,62 +91,70 @@ def create_watchlist_position(request):
         user = request.user
         watchlist_id = serializer.validated_data['watchlist_id']
         ticker = serializer.validated_data['ticker']
+
         try:
             watchlist = Watchlist.objects.get(user=user, id=watchlist_id)
-            watchlist_position = WatchlistPosition.objects.create(ticker=ticker, watchlist=watchlist)
-            watchlist_position_serializer = WatchlistPositionSerializer(watchlist_position)
-            return Response(format_response(status=True, return_data=watchlist_position_serializer.data))
         except Watchlist.DoesNotExist:
             return Response(format_response(status=False, error_descr="Watchlist not found"), status=404)
+
+        if WatchlistPosition.objects.filter(ticker=ticker, watchlist=watchlist).exists():
+            return Response(format_response(status=False, error_descr="A watchlist with this ticker already exists"))
+
+        watchlist_position = WatchlistPosition.objects.create(ticker=ticker, watchlist=watchlist)
+        watchlist_position_serializer = WatchlistPositionSerializer(watchlist_position)
+
+        return Response(format_response(status=True, return_data=watchlist_position_serializer.data))
+
     return Response(format_response(status=False, error_descr=serializer.errors), status=400)
+
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def delete_watchlist_position(request):
     serializer = DeleteWatchlistPositionSerializer(data=request.data)
     if serializer.is_valid():
-        user = request.user
         watchlist_id = serializer.validated_data['watchlist_id']
         watchlist_position_id = serializer.validated_data['watchlist_position_id']
+
         try:
-            watchlist_position = WatchlistPosition.objects.get(id=watchlist_position_id)
+            watchlist = Watchlist.objects.get(user=request.user, id=watchlist_id)
+        except Watchlist.DoesNotExist:
+            return Response(format_response(status=False, error_descr="Watchlist not found"), status=404)
+
+        try:
+            watchlist_position = WatchlistPosition.objects.get(id=watchlist_position_id, watchlist=watchlist)
             watchlist_position.delete()
             return Response(format_response(status=True))
         except WatchlistPosition.DoesNotExist:
             return Response(format_response(status=False, error_descr="WatchlistPosition not found"), status=404)
+
     return Response(format_response(status=False, error_descr=serializer.errors), status=400)
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def register(request):
     serializer = UserRegisterSerializer(data=request.data)
-    res = Response()
     if serializer.is_valid():
         serializer.save()
-        return Response(format_response(status=True, return_data=serializer.data))
-    return Response(format_response(status=False, error_descr=serializer.errors))
+        return Response(format_response(status=True, return_data=serializer.data), status=201)
+    return Response(format_response(status=False, error_descr=serializer.errors), status=400)
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def logout(request):
-
     try:
         res = Response(format_response(status=True))
         res.delete_cookie('access_token', path='/', samesite='None')
         res.delete_cookie('response_token', path='/', samesite='None')
-
         return res
-
     except Exception as e:
         print(e)
         return Response(format_response(status=False))
-
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def is_logged_in(request):
     serializer = UserSerializer(request.user, many=False)
-
     return Response(format_response(status=True, return_data=serializer.data))
 
 
@@ -179,7 +193,7 @@ class CustomTokenObtainPairView(TokenObtainPairView):
 
         except Exception as e:
             print(e)
-            return Response(format_response(status=False, error_descr=e.args))
+            return Response(format_response(status=False, error_descr=e.args), status=401)
 
 
 class CustomTokenRefreshView(TokenRefreshView):

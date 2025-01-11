@@ -38,6 +38,11 @@ class WatchlistSerializer(serializers.ModelSerializer):
 class GetWatchlistSerializer(serializers.ModelSerializer):
     watchlist_id = serializers.UUIDField()
 
+    class Meta:
+        model = Watchlist  # Replace Watchlist with the appropriate model name
+        fields = ['watchlist_id']  # Include all fields you want in the serializer
+
+
 class CreateWatchlistSerializer(serializers.Serializer):
     watchlist_name = serializers.CharField(max_length=255)
 
