@@ -8,8 +8,6 @@ from .serializers import WatchlistSerializer, WatchlistPositionSerializer, UserS
     CreateWatchlistSerializer, RenameWatchlistSerializer, DeleteWatchlistPositionSerializer, \
     CreateWatchlistPositionSerializer, DeleteWatchlistSerializer, GetWatchlistSerializer
 from .utils import format_response
-
-
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_watchlists(request):
