@@ -1,13 +1,15 @@
+from django.contrib.auth.models import User
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.views import TokenRefreshView, TokenObtainPairView
 
-from .models import Watchlist, WatchlistPosition
+from .models import Watchlist, WatchlistPosition, CalendarEvent
 from .serializers import WatchlistSerializer, WatchlistPositionSerializer, UserSerializer, UserRegisterSerializer, \
     CreateWatchlistSerializer, RenameWatchlistSerializer, DeleteWatchlistPositionSerializer, \
-    CreateWatchlistPositionSerializer, DeleteWatchlistSerializer, GetWatchlistSerializer
+    CreateWatchlistPositionSerializer, DeleteWatchlistSerializer, GetWatchlistSerializer, CalendarEventSerializer
 from .utils import format_response
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_watchlists(request):
@@ -221,3 +223,14 @@ class CustomTokenRefreshView(TokenRefreshView):
         except Exception as e:
             print(e)
             return Response(format_response(status=False))
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_calendar(request):
+    try:
+        events = CalendarEvent.objects.all().order_by('time')  # Ordered by time
+        serializer = CalendarEventSerializer(events, many=True)
+        return Response(format_response(status=True, return_data=serializer.data))
+    except Exception as e:
+        return Response(format_response(status=False, error_descr=e.args), status=401)

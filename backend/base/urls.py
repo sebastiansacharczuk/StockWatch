@@ -1,7 +1,7 @@
 from django.urls import path
 from .views import CustomTokenObtainPairView, CustomTokenRefreshView, logout, register, is_logged_in, get_watchlists, \
     create_watchlist, rename_watchlist, delete_watchlist, create_watchlist_position, delete_watchlist_position, \
-    get_watchlist
+    get_watchlist, get_calendar
 
 urlpatterns = [
     path('login', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
@@ -16,4 +16,5 @@ urlpatterns = [
     path('delete_watchlist', delete_watchlist),
     path('create_watchlist_position', create_watchlist_position),
     path('delete_watchlist_position', delete_watchlist_position),
+    path('get_calendar', get_calendar),
 ]

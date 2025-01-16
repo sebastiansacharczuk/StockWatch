@@ -326,7 +326,7 @@ def main():
     # create & connect to Streaming socket with given ssID
     # and functions for processing ticks, trades, profit and tradeStatus
     sclient = APIStreamClient(ssId=ssid, tickFun=procTickExample, tradeFun=procTradeExample, profitFun=procProfitExample, tradeStatusFun=procTradeStatusExample)
-    
+    sclient.execute()
     # subscribe for trades
     sclient.subscribeTrades()
     

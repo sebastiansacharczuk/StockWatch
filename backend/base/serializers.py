@@ -60,3 +60,21 @@ class CreateWatchlistPositionSerializer(serializers.Serializer):
 class DeleteWatchlistPositionSerializer(serializers.Serializer):
     watchlist_id = serializers.IntegerField()
     watchlist_position_id = serializers.IntegerField()
+
+from rest_framework import serializers
+from .models import CalendarEvent
+
+class CalendarEventSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CalendarEvent
+        fields = [
+            'id',
+            'country',
+            'current',
+            'forecast',
+            'impact',
+            'period',
+            'previous',
+            'time',
+            'title'
+        ]
