@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Watchlist, WatchlistPosition
+from .models import Watchlist, WatchlistPosition, CalendarEvent, SymbolRecord
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -61,8 +61,6 @@ class DeleteWatchlistPositionSerializer(serializers.Serializer):
     watchlist_id = serializers.IntegerField()
     watchlist_position_id = serializers.IntegerField()
 
-from rest_framework import serializers
-from .models import CalendarEvent
 
 class CalendarEventSerializer(serializers.ModelSerializer):
     class Meta:
@@ -78,3 +76,9 @@ class CalendarEventSerializer(serializers.ModelSerializer):
             'time',
             'title'
         ]
+
+
+class SymbolRecordSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SymbolRecord
+        fields = '__all__'

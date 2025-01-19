@@ -1,14 +1,16 @@
-from django.contrib.auth.models import User
+from datetime import datetime, timedelta
+
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
 from rest_framework_simplejwt.views import TokenRefreshView, TokenObtainPairView
 
-from .models import Watchlist, WatchlistPosition, CalendarEvent
+from .models import Watchlist, WatchlistPosition, CalendarEvent, refresh_calendar_data, refresh_symbol_data
 from .serializers import WatchlistSerializer, WatchlistPositionSerializer, UserSerializer, UserRegisterSerializer, \
     CreateWatchlistSerializer, RenameWatchlistSerializer, DeleteWatchlistPositionSerializer, \
     CreateWatchlistPositionSerializer, DeleteWatchlistSerializer, GetWatchlistSerializer, CalendarEventSerializer
 from .utils import format_response
+from .xtbapi.XTBAPIService import XTBAPIService
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -234,3 +236,53 @@ def get_calendar(request):
         return Response(format_response(status=True, return_data=serializer.data))
     except Exception as e:
         return Response(format_response(status=False, error_descr=e.args), status=401)
+
+@api_view(['POST'])
+@permission_classes([IsAdminUser])
+def reload_calendar(request):
+    xtb_service = XTBAPIService()
+    if not xtb_service:
+        return Response(format_response(status=False, error_descr="Server is not connected with XTB"), 401)
+
+    response = xtb_service.client.getCalendar()
+    if response.get('status'):
+        calendar_data = response.get('returnData')
+        refresh_calendar_data(calendar_data)
+        return Response(format_response(status=True))
+    else:
+        return Response(format_response(status=False, error_descr=response.get('errorDescr')))
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_news(request):
+    xtb_service = XTBAPIService()
+    if not xtb_service:
+        return Response(format_response(status=False, error_descr="Server is not connected with XTB"), 401)
+
+    start_time = datetime.now() - timedelta(days=3)
+    start_timestamp = int(start_time.timestamp() * 1000)
+    return Response(xtb_service.client.getNews(start=start_timestamp, end=0))
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_all_symbols(request):
+    xtb_service = XTBAPIService()
+    if not xtb_service:
+        return Response(format_response(status=False, error_descr="Server is not connected with XTB"), 401)
+
+    return Response(xtb_service.client.getAllSymbols())
+
+@api_view(['POST'])
+@permission_classes([IsAdminUser])
+def reload_symbols(request):
+    xtb_service = XTBAPIService()
+    if not xtb_service:
+        return Response(format_response(status=False, error_descr="Server is not connected with XTB"), 401)
+
+    response = xtb_service.client.getAllSymbols()
+    if response.get('status'):
+        calendar_data = response.get('returnData')
+        refresh_symbol_data(calendar_data)
+        return Response(format_response(status=True))
+    else:
+        return Response(format_response(status=False, error_descr=response.get('errorDescr')))

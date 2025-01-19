@@ -18,6 +18,65 @@ class WatchlistPosition(models.Model):
     watchlist = models.ForeignKey(Watchlist, on_delete=models.CASCADE, related_name='positions')
     ticker = models.CharField(max_length=10)
 
+class SymbolRecord(models.Model):
+    symbol = models.CharField(max_length=50)
+    description = models.TextField()
+    category_name = models.CharField(max_length=50)
+    group_name = models.CharField(max_length=50)
+    currency = models.CharField(max_length=10)
+    currency_pair = models.BooleanField()
+    currency_profit = models.CharField(max_length=10)
+    contract_size = models.FloatField()
+    leverage = models.FloatField()
+    lot_min = models.FloatField()
+    lot_max = models.FloatField()
+    lot_step = models.FloatField()
+    precision = models.IntegerField()
+    pips_precision = models.IntegerField()
+    swap_enable = models.BooleanField()
+    swap_long = models.FloatField()
+    swap_short = models.FloatField()
+    swap_type = models.IntegerField()
+    trailing_enabled = models.BooleanField()
+    short_selling = models.BooleanField()
+    long_only = models.BooleanField()
+
+    def __str__(self):
+        return self.symbol
+
+def refresh_symbol_data(symbol_data):
+    SymbolRecord.objects.all().delete()
+    symbols = []
+    batch_size = 100  # Adjust batch size as needed
+    for record in symbol_data:
+        symbols.append(SymbolRecord(
+            symbol=record['symbol'],
+            description=record['description'],
+            category_name=record['categoryName'],
+            group_name=record['groupName'],
+            currency=record['currency'],
+            currency_pair=record['currencyPair'],
+            currency_profit=record['currencyProfit'],
+            contract_size=record['contractSize'],
+            leverage=record['leverage'],
+            lot_min=record['lotMin'],
+            lot_max=record['lotMax'],
+            lot_step=record['lotStep'],
+            precision=record['precision'],
+            pips_precision=record['pipsPrecision'],
+            swap_enable=record['swapEnable'],
+            swap_long=record['swapLong'],
+            swap_short=record['swapShort'],
+            swap_type=record['swapType'],
+            trailing_enabled=record['trailingEnabled'],
+            short_selling=record['shortSelling'],
+            long_only=record['longOnly']
+        ))
+        if len(symbols) >= batch_size:
+            SymbolRecord.objects.bulk_create(symbols)
+            symbols = []
+    if symbols:
+        SymbolRecord.objects.bulk_create(symbols)
 
 
 class CalendarEvent(models.Model):
@@ -31,7 +90,7 @@ class CalendarEvent(models.Model):
     title = models.CharField(max_length=255)
 
 
-def save_calendar_data(calendar_data):
+def refresh_calendar_data(calendar_data):
     CalendarEvent.objects.all().delete()
     events = []
     batch_size = 100  # Adjust batch size as needed

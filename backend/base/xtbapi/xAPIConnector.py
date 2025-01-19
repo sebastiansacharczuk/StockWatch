@@ -92,7 +92,8 @@ class JsonSocket(object):
         if not self.socket:
             raise RuntimeError("socket connection broken")
         while True:
-            char = self.conn.recv(bytesSize).decode()
+
+            char = self.conn.recv(bytesSize).decode(errors='replace')
             self._receivedData += char
             try:
                 (resp, size) = self._decoder.raw_decode(self._receivedData)
@@ -158,8 +159,9 @@ class JsonSocket(object):
 class APIClient(JsonSocket):
     def __init__(self, address=DEFAULT_XAPI_ADDRESS, port=DEFAULT_XAPI_PORT, encrypt=True):
         super(APIClient, self).__init__(address, port, encrypt)
-        if(not self.connect()):
+        if not self.connect():
             raise Exception("Cannot connect to " + address + ":" + str(port) + " after " + str(API_MAX_CONN_TRIES) + " retries")
+
 
     def execute(self, dictionary):
         self._sendObj(dictionary)
@@ -171,9 +173,39 @@ class APIClient(JsonSocket):
     def commandExecute(self,commandName, arguments=None):
         return self.execute(baseCommand(commandName, arguments))
 
+    def ping(self):
+        return self.execute(dict(command='ping'))
+
+    def getAllSymbols(self):
+        return self.execute(dict(command='getAllSymbols'))
+
+    def getCalendar(self):
+        return self.execute(dict(command='getCalendar'))
+
+    def getNews(self, start, end):
+        return self.execute(dict(
+            command='getNews',
+            arguments=dict(
+                start=start,
+                end=end
+            )
+        ))
+
+    def getLastChart(self, period, start, symbol):
+        return self.execute(dict(
+            command='getLastChart',
+            arguments=dict(
+                info=dict(
+                    period=period,
+                    start=start,
+                    symbol=symbol
+                )
+            )
+        ))
+
 class APIStreamClient(JsonSocket):
     def __init__(self, address=DEFAULT_XAPI_ADDRESS, port=DEFUALT_XAPI_STREAMING_PORT, encrypt=True, ssId=None, 
-                 tickFun=None, tradeFun=None, balanceFun=None, tradeStatusFun=None, profitFun=None, newsFun=None):
+                 tickFun=None, tradeFun=None, balanceFun=None, tradeStatusFun=None, profitFun=None, newsFun=None, keepFun=None):
         super(APIStreamClient, self).__init__(address, port, encrypt)
         self._ssId = ssId
 
@@ -183,8 +215,9 @@ class APIStreamClient(JsonSocket):
         self._tradeStatusFun = tradeStatusFun
         self._profitFun = profitFun
         self._newsFun = newsFun
+        self._keepFun = keepFun
         
-        if(not self.connect()):
+        if not self.connect():
             raise Exception("Cannot connect to streaming on " + address + ":" + str(port) + " after " + str(API_MAX_CONN_TRIES) + " retries")
 
         self._running = True
@@ -193,7 +226,7 @@ class APIStreamClient(JsonSocket):
         self._t.start()
 
     def _readStream(self):
-        while (self._running):
+        while self._running:
                 msg = self._readObj()
                 logger.info("Stream received: " + str(msg))
                 if (msg["command"]=='tickPrices'):
@@ -208,6 +241,8 @@ class APIStreamClient(JsonSocket):
                     self._profitFun(msg)
                 elif (msg["command"]=="news"):
                     self._newsFun(msg)
+                elif (msg["command"]=="keepAlive"):
+                    self._keepFun(msg)
     
     def disconnect(self):
         self._running = False
@@ -239,6 +274,8 @@ class APIStreamClient(JsonSocket):
     def subscribeNews(self):
         self.execute(dict(command='getNews', streamSessionId=self._ssId))
 
+    def subscribeKeepAlive(self):
+        self.execute(dict(command='getKeepAlive', streamSessionId=self._ssId))
 
     def unsubscribePrice(self, symbol):
         self.execute(dict(command='stopTickPrices', symbol=symbol, streamSessionId=self._ssId))
@@ -261,6 +298,9 @@ class APIStreamClient(JsonSocket):
 
     def unsubscribeNews(self):
         self.execute(dict(command='stopNews', streamSessionId=self._ssId))
+
+    def unsubscribeKeepAlive(self):
+        self.execute(dict(command='stopKeepAlive', streamSessionId=self._ssId))
 
 
 # Command templates
@@ -297,39 +337,43 @@ def procProfitExample(msg):
 # example function for processing news from Streaming socket
 def procNewsExample(msg): 
     print("NEWS: ", msg)
+
+def procKeepAliveExample(msg):
+    pass
+    # print("KEEPALIVE: ", msg)
     
 
 def main():
-
     # enter your login credentials here
     userId = 12345
     password = "password"
 
     # create & connect to RR socket
     client = APIClient()
-    
+
     # connect to RR socket, login
     loginResponse = client.execute(loginCommand(userId=userId, password=password))
-    logger.info(str(loginResponse)) 
+    logger.info(str(loginResponse))
 
     # check if user logged in correctly
-    if(loginResponse['status'] == False):
+    if (loginResponse['status'] == False):
         print('Login failed. Error code: {0}'.format(loginResponse['errorCode']))
         return
 
     # get ssId from login response
     ssid = loginResponse['streamSessionId']
-    
+
     # second method of invoking commands
     resp = client.commandExecute('getAllSymbols')
-    
+
     # create & connect to Streaming socket with given ssID
     # and functions for processing ticks, trades, profit and tradeStatus
-    sclient = APIStreamClient(ssId=ssid, tickFun=procTickExample, tradeFun=procTradeExample, profitFun=procProfitExample, tradeStatusFun=procTradeStatusExample)
-    sclient.execute()
+    sclient = APIStreamClient(ssId=ssid, tickFun=procTickExample, tradeFun=procTradeExample,
+                              profitFun=procProfitExample, tradeStatusFun=procTradeStatusExample)
+
     # subscribe for trades
     sclient.subscribeTrades()
-    
+
     # subscribe for prices
     sclient.subscribePrices(['EURUSD', 'EURGBP', 'EURJPY'])
 
@@ -338,13 +382,13 @@ def main():
 
     # this is an example, make it run for 5 seconds
     time.sleep(5)
-    
+
     # gracefully close streaming socket
     sclient.disconnect()
-    
+
     # gracefully close RR socket
     client.disconnect()
-    
-    
+
+
 if __name__ == "__main__":
     main()	
